@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>GoalStreet Collection</title>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo-placeholder">
+    <img src="logo.png" alt="Logo GoalStreet" class="logo-img">
+  </div>
+  <h1>GoalStreet Collection</h1>
+</div>
+
+<!-- TOP BAR: MENU + RICERCA -->
+<div class="top-bar">
+  <div id="menuToggle">
+    <div></div><div></div><div></div>
+  </div>
+  <div id="searchBar">
+    <div class="search-wrapper">
+      <input type="text" id="searchInput" placeholder="Cerca squadra o campionato...">
+      <button id="searchBtn">??</button>
+      <ul id="suggestions"></ul>
+    </div>
+  </div>
+</div>
+
+<!-- MENU LATERALE -->
+<aside id="sideMenu">
+  <button id="sideBackBtn">? Torna indietro</button>
+  <h3>Filtra Catalogo</h3>
+  <ul id="categoryMenu"></ul>
+</aside>
+
+<!-- GRIGLIA PRODOTTI -->
+<div class="container-prodotti" id="productGrid"></div>
+
+<!-- PAGINAZIONE -->
+<div id="pagination" style="text-align: center; margin-top: 30px;">
+  <button id="prevPage">? Pagina precedente</button>
+  <span id="pageIndicator" style="margin: 0 20px; font-weight: bold;"></span>
+  <button id="nextPage">Pagina successiva ?</button>
+</div>
+
+<!-- MODAL VISUALIZZAZIONE -->
+<div id="modalVisuale">
+  <button id="tornaIndietro">? Torna indietro</button>
+  <div class="modal-fullscreen">
+    <img id="modalImage" src="" alt="visuale">
+    <div class="modal-text">
+      <h2 id="modalSquadra"></h2>
+      <h4 id="modalSottotitolo"></h4>
+      <div id="modalDescrizione"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SCRIPT JS -->
+<script>
+let prodotti = [];
+let prodottiFiltrati = [];
+let campionati = {};
+let paginaCorrente = 1;
+const prodottiPerPagina = 80;
+
+// Carica prima i campionati, poi i prodotti
+Promise.all([
+  fetch("campionati.json").then(res => res.json()),
+  fetch("prodotti.json").then(res => res.json())
+])
+.then(([campionatiData, prodottiData]) => {
+  campionati = campionatiData;
+  prodotti = prodottiData;
+
+  // Assegna il campionato a ogni prodotto se non è già presente
+  prodotti.forEach(prodotto => {
+    if (!prodotto.campionato && campionati[prodotto.squadra]) {
+      prodotto.campionato = campionati[prodotto.squadra];
+    }
+  });
+
+  prodottiFiltrati = [...prodotti];
+  mostraProdottiPerPagina();
+  creaMenuCategorie();
+})
+.catch(error => {
+  console.error('Errore nel caricamento dei dati:', error);
+  document.getElementById("productGrid").innerHTML = "<p>Errore nel caricamento dei prodotti.</p>";
+});
+
+const grid = document.getElementById("productGrid");
+const menuToggle = document.getElementById("menuToggle");
+const sideMenu = document.getElementById("sideMenu");
+const categoryMenu = document.getElementById("categoryMenu");
+const modal = document.getElementById("modalVisuale");
+const modalImg = document.getElementById("modalImage");
+const backBtn = document.getElementById("tornaIndietro");
+const searchInput = document.getElementById("searchInput");
+const searchBtn = document.getElementById("searchBtn");
+const suggestionsList = document.getElementById("suggestions");
+const sideBackBtn = document.getElementById("sideBackBtn");
+
+const prevPageBtn = document.getElementById("prevPage");
+const nextPageBtn = document.getElementById("nextPage");
+const pageIndicator = document.getElementById("pageIndicator");
+
+let ultimoElementoScorrimento = null;
+
+menuToggle.addEventListener("click", () => {
+  sideMenu.classList.toggle("active");
+  menuToggle.classList.toggle("active");
+});
+
+sideBackBtn.addEventListener("click", () => {
+  sideMenu.classList.remove("active");
+  menuToggle.classList.remove("active");
+});
+
+function mostraProdottiPerPagina() {
+  const start = (paginaCorrente - 1) * prodottiPerPagina;
+  const end = start + prodottiPerPagina;
+  const pagina = prodottiFiltrati.slice(start, end);
+  mostraProdotti(pagina);
+  aggiornaNavigazione();
+}
+
+function aggiornaNavigazione() {
+  const totalePagine = Math.ceil(prodottiFiltrati.length / prodottiPerPagina);
+  pageIndicator.textContent = `Pagina ${paginaCorrente} di ${totalePagine}`;
+  prevPageBtn.disabled = paginaCorrente === 1;
+  nextPageBtn.disabled = paginaCorrente >= totalePagine;
+}
+
+prevPageBtn.addEventListener("click", () => {
+  if (paginaCorrente > 1) {
+    paginaCorrente--;
+    mostraProdottiPerPagina();
+  }
+});
+
+nextPageBtn.addEventListener("click", () => {
+  const totalePagine = Math.ceil(prodottiFiltrati.length / prodottiPerPagina);
+  if (paginaCorrente < totalePagine) {
+    paginaCorrente++;
+    mostraProdottiPerPagina();
+  }
+});
+
+function mostraProdotti(lista) {
+  grid.innerHTML = "";
+  if (lista.length === 0) {
+    grid.innerHTML = "<p>Nessun prodotto disponibile.</p>";
+    return;
+  }
+
+  lista.forEach((p) => {
+    const box = document.createElement("div");
+    box.className = "prodotto";
+    box.id = `prodotto-${p.id}`;
+    
+    const imgContent = p.immagine ? 
+      `<img src="${p.immagine}" alt="${p.squadra}" loading="lazy" />` : 
+      `<span style="color:#fff;">Nessuna immagine</span>`;
+    
+    box.innerHTML = `
+      <div class="img-box">
+        ${imgContent}
+      </div>
+      <div class="info">
+        <div class="squadra">${p.squadra}</div>
+        ${p.stagione ? `<div class="stagione">${p.stagione}</div>` : ""}
+        ${p.descrizione ? `<div class="descrizione">${p.descrizione}</div>` : ""}
+        <div class="id">ID: ${p.id}</div>
+      </div>
+    `;
+
+    box.addEventListener("click", () => {
+      try {
+        // Imposta l'immagine del modal
+        modalImg.src = p.immagine || "";
+        modalImg.alt = p.squadra || "Prodotto";
+        
+        // Aggiorna i testi del modal
+        const modalSquadra = document.getElementById("modalSquadra");
+        const modalSottotitolo = document.getElementById("modalSottotitolo");
+        const modalDescrizione = document.getElementById("modalDescrizione");
+        
+        if (modalSquadra) {
+          modalSquadra.textContent = p.squadra || "";
+        }
+        
+        if (modalSottotitolo) {
+          const sottotitoloText = `${p.campionato || ''}${p.stagione ? ' - ' + p.stagione : ''} - ID: ${p.id}`;
+          modalSottotitolo.textContent = sottotitoloText;
+        }
+        
+        if (modalDescrizione) {
+          modalDescrizione.textContent = p.descrizione || "";
+        }
+
+        // Mostra il modal
+        modal.style.display = "flex";
+        ultimoElementoScorrimento = box.id;
+      } catch (error) {
+        console.error('Errore nell\'apertura del modal:', error);
+      }
+    });
+
+    grid.appendChild(box);
+  });
+}
+
+backBtn.addEventListener("click", () => {
+  modal.style.display = "none";
+  if (ultimoElementoScorrimento) {
+    const elemento = document.getElementById(ultimoElementoScorrimento);
+    if (elemento) {
+      elemento.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+});
+
+// Chiudi modal cliccando fuori dall'immagine
+modal.addEventListener("click", (e) => {
+  if (e.target === modal) {
+    modal.style.display = "none";
+    if (ultimoElementoScorrimento) {
+      const elemento = document.getElementById(ultimoElementoScorrimento);
+      if (elemento) {
+        elemento.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }
+});
+
+searchBtn.addEventListener("click", () => {
+  const query = searchInput.value.toLowerCase().trim();
+  if (!query) {
+    prodottiFiltrati = [...prodotti];
+    paginaCorrente = 1;
+    mostraProdottiPerPagina();
+    return;
+  }
+
+  prodottiFiltrati = prodotti.filter(p =>
+    p.squadra.toLowerCase().includes(query) ||
+    (p.campionato && p.campionato.toLowerCase().includes(query))
+  );
+
+  paginaCorrente = 1;
+  mostraProdottiPerPagina();
+});
+
+searchInput.addEventListener("input", () => {
+  const query = searchInput.value.toLowerCase().trim();
+  suggestionsList.innerHTML = "";
+  if (!query) return;
+
+  const matches = new Set();
+  prodotti.forEach(p => {
+    if (p.squadra.toLowerCase().includes(query)) matches.add(p.squadra);
+    if (p.campionato && p.campionato.toLowerCase().includes(query)) matches.add(p.campionato);
+  });
+
+  Array.from(matches).slice(0, 5).forEach(match => {
+    const li = document.createElement("li");
+    li.textContent = match;
+    li.addEventListener("click", () => {
+      searchInput.value = match;
+      suggestionsList.innerHTML = "";
+      searchBtn.click();
+    });
+    suggestionsList.appendChild(li);
+  });
+});
+
+// Nascondi suggerimenti quando si clicca fuori
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".search-wrapper")) {
+    suggestionsList.innerHTML = "";
+  }
+});
+
+function creaMenuCategorie() {
+  categoryMenu.innerHTML = "";
+
+  // Ordine delle versioni come richiesto
+  const versioni = [
+    "Retro Version", 
+    "Player Version", 
+    "Classic Version", 
+    "Shorts Version", 
+    "Longsleeve Version", 
+    "Kit Version",
+    "National Version"
+  ];
+
+  versioni.forEach(versione => {
+    const liVersione = document.createElement("li");
+    liVersione.textContent = versione;
+    liVersione.style.fontWeight = "bold";
+    liVersione.style.color = "#66FF00";
+
+    liVersione.addEventListener("click", () => {
+      // Trova i campionati che hanno prodotti per questa versione
+      const campionatiDisponibili = [...new Set(prodotti
+        .filter(p => p.categoria === versione && p.campionato)
+        .map(p => p.campionato))].sort();
+
+      if (liVersione.querySelector("ul")) {
+        liVersione.removeChild(liVersione.querySelector("ul"));
+        return;
+      }
+
+      const ulCampionati = document.createElement("ul");
+
+      // Opzione "Visualizza tutto" per la versione
+      const allVersione = document.createElement("li");
+      allVersione.textContent = "Visualizza tutto";
+      allVersione.style.fontStyle = "italic";
+      allVersione.style.color = "#ccc";
+      allVersione.onclick = (e) => {
+        e.stopPropagation();
+        prodottiFiltrati = prodotti.filter(p => p.categoria === versione);
+        paginaCorrente = 1;
+        mostraProdottiPerPagina();
+      };
+      ulCampionati.appendChild(allVersione);
+
+      campionatiDisponibili.forEach(campionato => {
+        const liCampionato = document.createElement("li");
+        liCampionato.textContent = campionato;
+        liCampionato.style.fontWeight = "normal";
+        liCampionato.style.color = "#fff";
+
+        liCampionato.addEventListener("click", (e) => {
+          e.stopPropagation();
+
+          // Trova le squadre che hanno prodotti per questa versione e campionato
+          const squadreDisponibili = [...new Set(prodotti
+            .filter(p => p.categoria === versione && p.campionato === campionato)
+            .map(p => p.squadra))].sort();
+
+          if (liCampionato.querySelector("ul")) {
+            liCampionato.removeChild(liCampionato.querySelector("ul"));
+            return;
+          }
+
+          const ulSquadre = document.createElement("ul");
+
+          // Opzione "Visualizza tutto" per il campionato
+          const allCampionato = document.createElement("li");
+          allCampionato.textContent = "Visualizza tutto";
+          allCampionato.style.fontStyle = "italic";
+          allCampionato.style.color = "#ccc";
+          allCampionato.onclick = (ev) => {
+            ev.stopPropagation();
+            prodottiFiltrati = prodotti.filter(p =>
+              p.categoria === versione && p.campionato === campionato
+            );
+            paginaCorrente = 1;
+            mostraProdottiPerPagina();
+          };
+          ulSquadre.appendChild(allCampionato);
+
+          squadreDisponibili.forEach(squadra => {
+            const liSquadra = document.createElement("li");
+            liSquadra.textContent = squadra;
+            liSquadra.style.fontWeight = "normal";
+            liSquadra.style.color = "#ddd";
+
+            liSquadra.addEventListener("click", (ev) => {
+              ev.stopPropagation();
+              prodottiFiltrati = prodotti.filter(p =>
+                p.categoria === versione &&
+                p.campionato === campionato &&
+                p.squadra === squadra
+              );
+              paginaCorrente = 1;
+              mostraProdottiPerPagina();
+            });
+
+            ulSquadre.appendChild(liSquadra);
+          });
+
+          liCampionato.appendChild(ulSquadre);
+        });
+
+        ulCampionati.appendChild(liCampionato);
+      });
+
+      liVersione.appendChild(ulCampionati);
+    });
+
+    categoryMenu.appendChild(liVersione);
+  });
+}
+</script>
+
+</body>
+</html>

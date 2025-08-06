@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Editor Catalogo - GoalStreet Collection</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #1E2F23;
+      color: white;
+      padding: 40px 20px;
+      max-width: 800px;
+      margin: auto;
+    }
+
+    h1, h2 {
+      font-family: 'Dancing Script', cursive;
+      color: #66FF00;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    label {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    input, select, textarea, button {
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      font-size: 1em;
+    }
+
+    input, select, textarea {
+      background-color: #fff;
+      color: #1E2F23;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    button {
+      background-color: #66FF00;
+      color: #1E2F23;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #7FFF2A;
+    }
+
+    .success, .info {
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    .success { color: #66FF00; }
+    .info { color: #ccc; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 30px;
+      background-color: #fff;
+      color: #1E2F23;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #ccc;
+    }
+
+    thead {
+      background-color: #66FF00;
+      color: #1E2F23;
+    }
+
+    tbody tr:hover {
+      background-color: #f2f2f2;
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <h1>Editor Catalogo</h1>
+
+  <form id="prodottoForm">
+    <div>
+      <label for="categoria">Categoria</label>
+      <select id="categoria" required>
+        <option value="">Seleziona una categoria</option>
+        <option value="Classic Version">Classic Version</option>
+        <option value="Retro Version">Retro Version</option>
+        <option value="Player Version">Player Version</option>
+        <option value="National Version">National Version</option>
+        <option value="Longsleeve Version">Longsleeve Version</option>
+        <option value="Kit Version">Kit Version</option>
+        <option value="Shorts Version">Shorts Version</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="squadra">Nome Squadra</label>
+      <input type="text" id="squadra" required>
+    </div>
+
+    <div>
+      <label for="stagione">Stagione (opzionale)</label>
+      <input type="text" id="stagione" placeholder="Es: 2023/24">
+    </div>
+
+    <div>
+      <label for="id">ID Prodotto (assegnato automaticamente)</label>
+      <input type="text" id="id" readonly>
+    </div>
+
+    <div>
+      <label for="immagine">URL Immagine (opzionale)</label>
+      <input type="text" id="immagine" placeholder="https://...">
+    </div>
+
+    <div>
+      <label for="descrizione">Descrizione (opzionale)</label>
+      <textarea id="descrizione" placeholder="Inserisci una breve descrizione..."></textarea>
+    </div>
+
+    <button type="submit">Aggiungi Prodotto</button>
+
+    <div class="btn-group">
+      <button type="button" id="btnEsporta">Esporta JSON</button>
+      <button type="button" id="btnReset">Reset prodotti</button>
+    </div>
+
+    <div class="success" id="msgSuccesso"></div>
+    <div class="info" id="msgInfo"></div>
+  </form>
+
+  <h2>Prodotti Salvati</h2>
+  <table id="tabellaProdotti">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Categoria</th>
+        <th>Squadra</th>
+        <th>Stagione</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const form = document.getElementById('prodottoForm');
+    const msgSuccesso = document.getElementById('msgSuccesso');
+    const msgInfo = document.getElementById('msgInfo');
+    const btnEsporta = document.getElementById('btnEsporta');
+    const btnReset = document.getElementById('btnReset');
+
+    // Mappa squadra ? campionato
+    const squadreCampionati = {
+      // Squadre di club
+      "Aberdeen": "Scottish Premiership",
+      "Aik": "Allsvenskan",
+      "Ajax": "Eredivisie",
+      "Al Ahly": "Premier League Egiziana",
+      "Al Hilal": "Saudi Pro League",
+      "Al Nassr": "Saudi Pro League",
+      "Albacete": "Segunda Division",
+      "Almeria": "Segunda Division",
+      "Amburgo": "Bundesliga",
+      "Arsenal": "Premier League",
+      "Aston Villa": "Premier League",
+      "Atalanta": "Serie A",
+      "Athletic Bilbao": "La Liga",
+      "Atlanta United": "Mls",
+      "Atletico Madrid": "La Liga",
+      "Atletico Mineiro": "Serie A Brasiliana",
+      "Atletico Nacional": "Primeira A Colombiana",
+      "Austin": "Mls",
+      "Bahia": "Serie A Brasiliana",
+      "Barcellona": "La Liga",
+      "Bari": "Serie B",
+      "Bayer Leverkusen": "Bundesliga",
+      "Bayern Monaco": "Bundesliga",
+      "Benfica": "Liga Portugal",
+      "Besiktas": "Super Lig",
+      "Betis": "La Liga",
+      "Birmingham": "Championship",
+      "Blackburn Rovers": "Championship",
+      "Boca Juniors": "Primera Division Argentina",
+      "Bologna": "Serie A",
+      "Bornemounth": "Premier League",
+      "Borussia Dortmund": "Bundesliga",
+      "Borussia Monchengladbach": "Bundesliga",
+      "Botafogo": "Serie A Brasiliana",
+      "Braga": "Liga Portugal",
+      "Brighton": "Premier League",
+      "Cadiz": "Segunda Division",
+      "Ceara": "Serie A Brasiliana",
+      "Celta Vigo": "La Liga",
+      "Celtic": "Scottish Premiership",
+      "Charlotte": "Mls",
+      "Chelsea": "Premier League",
+      "Chivas": "Liga MX",
+      "Club America": "Liga MX",
+      "Club De Tenerife": "Segunda Division",
+      "Club Deportivo Huachipato": "Liga de Primera",
+      "Club Olimpia": "Division Profesional",
+      "Colo Colo": "Liga de Primera",
+      "Colonia": "Bundesliga",
+      "Copenaghen": "Superligaen",
+      "Cordoba": "Segunda Division",
+      "Corinthians": "Serie A Brasiliana",
+      "Coventry City": "Championship",
+      "Cruz Azul": "Liga MX",
+      "Cruzeiro": "Serie A Brasiliana",
+      "Crystal Palace": "Premier League",
+      "Dc United": "Mls",
+      "Deportivo La Coruna": "Segunda Division",
+      "Dinamo Zagabria": "HLN",
+      "Eintracht Francoforte": "Bundesliga",
+      "Elche": "La Liga",
+      "Estoril Praia": "Liga Portugal",
+      "Everton": "Premier League",
+      "Famalicao": "Liga Portugal",
+      "Fcsb": "Liga I Romania",
+      "Fenerbache": "Super Lig",
+      "Feyenoord": "Eredivisie",
+      "Fiorentina": "Serie A",
+      "Flamengo": "Serie A Brasiliana",
+      "Fluiminense": "Serie A Brasiliana",
+      "Fortaleza": "Serie A Brasiliana",
+      "Fortuna Dusseldorf": "Bundesliga",
+      "Friburgo": "Bundesliga",
+      "Fulham": "Premier League",
+      "Galatasaray": "Super Lig",
+      "Genoa": "Serie A",
+      "Getafe": "La Liga",
+      "Girona": "La Liga",
+      "Granada": "Segunda Division",
+      "Gremio": "Serie A Brasiliana",
+      "Greuther Furth": "2. Bundesliga",
+      "Hannover 96": "2. Bundesliga",
+      "Heidenheim": "Bundesliga",
+      "Hertha Berlino": "2. Bundesliga",
+      "Hibernian": "Scottish Premiership",
+      "Holstein Kiel": "2. Bundesliga",
+      "Inter": "Serie A",
+      "Inter Miami": "Mls",
+      "Internacional": "Serie A Brasiliana",
+      "Ipswhich Town": "Premier League",
+      "Junior de Baranquilla": "Categoria Primera A",
+      "Juventus": "Serie A",
+      "Las Palmas": "La Liga",
+      "Lazio": "Serie A",
+      "Leeds": "Premier League",
+      "Legia Varsavia": "Ekstraklasa",
+      "Leicester City": "Championship",
+      "Lens": "Ligue 1",
+      "Lille": "Ligue 1",
+      "Linfield": "NIFL Premiership",
+      "Lione": "Ligue 1",
+      "Lipsia": "Bundesliga",
+      "Liverpool": "Premier League",
+      "Los Angeles Galaxy": "Mls",
+      "Maccabi Haifa": "Liga ha'AI",
+      "Malaga": "Segunda Division",
+      "Mallorca": "La Liga",
+      "Manchester City": "Premier League",
+      "Manchester United": "Premier League",
+      "Marsiglia": "Ligue 1",
+      "Middlesbrourgh": "Championship",
+      "Midtjylland": "Superligaen",
+      "Milan": "Serie A",
+      "Millonarios": "Categoria Primera A",
+      "Minnesota United": "Mls",
+      "Monaco": "Ligue 1",
+      "Monterrey": "Liga MX",
+      "Munster": "2. Bundesliga",
+      "Nantes": "Ligue 1",
+      "Napoli": "Serie A",
+      "New York City": "Mls",
+      "Newcastle": "Premier League",
+      "Newcastle United Jets": "A-League",
+      "Nizza": "Ligue 1",
+      "Norimberga": "2. Bundesliga",
+      "Nottingham Forest": "Premier League",
+      "Olympiakos": "Super League Greca",
+      "Orlando City": "Mls",
+      "Osasuna": "La Liga",
+      "Pachuca": "Liga MX",
+      "Palermo": "Serie B",
+      "Palestino": "Liga De Primera",
+      "Palmeiras": "Serie A Brasiliana",
+      "Paris Fc": "Ligue 1",
+      "Parma": "Serie A",
+      "Perth Glory": "A-League",
+      "Philadelphia": "Mls",
+      "Plymouth Argyle": "League One",
+      "Portland Timbers": "Mls",
+      "Porto": "Liga Portugal",
+      "Portsmouth": "Championship",
+      "Psg": "Ligue 1",
+      "Psv": "Eredivisie",
+      "Racing Santander": "Segunda Division",
+      "Rangers": "Scottish Premiership",
+      "Rayo Vallecano": "La Liga",
+      "Reading": "League One",
+      "Real Madrid": "La Liga",
+      "Real Oviedo": "La Liga",
+      "Real Saragoza": "Segunda Division",
+      "Real Sociedad": "La Liga",
+      "Real Valladolid": "Segunda Division",
+      "River Plate": "Primera Division Argentina",
+      "Roma": "Serie A",
+      "Saint Etienne": "Ligue 2",
+      "Salernitana": "Serie C",
+      "Salisburgo": "Bundesliga Austria",
+      "Sampdoria": "Serie B",
+      "San Diego": "Mls",
+      "San Lorenzo": "Primera Division Argentina",
+      "Santiago Wanderers": "Primera B De Chile",
+      "Santos": "Serie A Brasiliana",
+      "Sao Paolo": "Serie A Brasiliana",
+      "Sassuolo": "Serie B",
+      "Schalke 04": "2. Bundesliga",
+      "Sheffield United": "Championship",
+      "Sheffield Wednesday": "Championship",
+      "Siviglia": "La Liga",
+      "Sport Recife": "Serie A Brasiliana",
+      "Sporting Gijon": "Segunda Division",
+      "Sporting Lisbona": "Liga Portugal",
+      "St. Pauli": "Bundesliga",
+      "Stade Rennais": "Ligue 1",
+      "Standard Liegi": "Pro League",
+      "Stoccarda": "Bundesliga",
+      "Stoke City": "Championship",
+      "Strasburgo": "Ligue 1",
+      "Sunderland": "Championship",
+      "Tigres": "Liga MX",
+      "Tolosa": "Ligue 1",
+      "Torino": "Serie A",
+      "Tottenham Hotspur": "Premier League",
+      "Udinese": "Serie A",
+      "Union Berlino": "Bundesliga",
+      "Universidad Catolica": "Liga De Primera",
+      "Universidad De Chile": "Liga De Primera",
+      "Valencia": "La Liga",
+      "Vasco Da Gama": "Serie A Brasiliana",
+      "Venezia": "Serie B",
+      "Villareal": "La Liga",
+      "Wellington Phoenix": "A-League",
+      "Werder Brema": "Bundesliga",
+      "West Bromwich": "Championship",
+      "West Ham": "Premier League",
+      "Western Sidney": "A-League",
+      "Wrexham": "Championship",
+      "Wolfsburg": "Bundesliga",
+      "Wolves": "Premier League",
+      "Young Africans": "Ligi Kuu Bara",
+      "Atlas": "Liga MX",
+      "Cartagena": "Segunda Division",
+      "Hoffenheim": "Bundesliga",
+      "Lincoln City": "League One",
+      "Pescara": "Serie B",
+      "Unam": "Liga MX",
+      "Brescia": "Serie B",
+      "Espanyol": "La Liga",
+      "Getafe": "La Liga",
+      "Leganes": "La Liga",
+      "Al Ittihad": "Saudi Pro League",
+      "Brentford": "Premier League",
+      "Kawasaki Frontale": "J1 League",
+      "Penang": "Malaysia Super League",
+      "Sagan Tosu": "J2 League",
+      "Sanfrecce Hiroshima": "J1 League",
+      "Seattle Sounders": "Mls",
+      "Terengganu": "Malaysia Super League",
+      "Toronto": "Mls",
+      "Usm Alger": "Ligue 1 Algerina",
+
+      // Squadre nazionali
+      "Albania": "Europa",
+      "Algeria": "Africa",
+      "Arabia Saudita": "Asia",
+      "Argentina": "America",
+      "Australia": "Oceania",
+      "Austria": "Europa",
+      "Belgio": "Europa",
+      "Bolivia": "America",
+      "Brasile": "America",
+      "Camerun": "Africa",
+      "Canada": "America",
+      "Capo Verde": "Africa",
+      "Cile": "America",
+      "Colombia": "America",
+      "Corea Del Sud": "Asia",
+      "Costa D'Avorio": "Africa",
+      "Costa Rica": "America",
+      "Croazia": "Europa",
+      "Danimarca": "Europa",
+      "Ecuador": "America",
+      "Egitto": "Africa",
+      "El Salvador": "America",
+      "Filippine": "Asia",
+      "Finlandia": "Europa",
+      "Francia": "Europa",
+      "Galles": "Europa",
+      "Georgia": "Europa",
+      "Germania": "Europa",
+      "Ghana": "Africa",
+      "Giappone": "Asia",
+      "Guatemala": "America",
+      "Guinea": "Africa",
+      "Inghilterra": "Europa",
+      "Iran": "Asia",
+      "Irlanda": "Europa",
+      "Irlanda Del Nord": "Europa",
+      "Islanda": "Europa",
+      "Italia": "Europa",
+      "Jamaica": "America",
+      "Mali": "Africa",
+      "Marocco": "Africa",
+      "Messico": "America",
+      "Nigeria": "Africa",
+      "Norvegia": "Europa",
+      "Olanda": "Europa",
+      "Palestina": "Asia",
+      "Panama": "America",
+      "Peru": "America",
+      "Polonia": "Europa",
+      "Portogallo": "Europa",
+      "Qatar": "Asia",
+      "Repubblica Ceca": "Europa",
+      "Romania": "Europa",
+      "Scozia": "Europa",
+      "Senegal": "Africa",
+      "Serbia": "Europa",
+      "Spagna": "Europa",
+      "Svezia": "Europa",
+      "Svizzera": "Europa",
+      "Tunisia": "Africa",
+      "Turchia": "Africa",
+      "Ucraina": "Europa",
+      "Ungheria": "Europa",
+      "Uruguay": "America",
+      "Usa": "America",
+      "Venezuela": "America",
+      "Unione Sovietica": "Europa"
+    };
+
+    function getProdotti() {
+      return JSON.parse(localStorage.getItem('prodotti')) || [];
+    }
+
+    function setProdotti(list) {
+      localStorage.setItem('prodotti', JSON.stringify(list));
+    }
+
+    function aggiornaId() {
+      const prodotti = getProdotti();
+      const nuovoId = prodotti.length > 0 ? prodotti.length + 1 : 1;
+      document.getElementById('id').value = nuovoId;
+    }
+
+    function aggiornaTabella() {
+      const tbody = document.querySelector('#tabellaProdotti tbody');
+      tbody.innerHTML = '';
+      const prodotti = getProdotti();
+      if (prodotti.length === 0) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 4;
+        cell.textContent = 'Nessun prodotto salvato.';
+        cell.style.textAlign = 'center';
+        row.appendChild(cell);
+        tbody.appendChild(row);
+        return;
+      }
+      prodotti.forEach(p => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${p.id}</td>
+          <td>${p.categoria}</td>
+          <td>${p.squadra}</td>
+          <td>${p.stagione}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function aggiornaCampionatiProdottiSalvati() {
+      const prodotti = getProdotti();
+      let modificato = false;
+
+      const aggiornati = prodotti.map(p => {
+        if (!p.campionato || p.campionato.trim() === '') {
+          const stimato = squadreCampionati[p.squadra];
+          if (stimato) {
+            p.campionato = stimato;
+            modificato = true;
+          }
+        }
+        return p;
+      });
+
+      if (modificato) {
+        setProdotti(aggiornati);
+        console.log("? Campionati aggiornati nei prodotti salvati.");
+      }
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const squadra = document.getElementById('squadra').value;
+      const campionato = squadreCampionati[squadra] || '';
+
+      const prodotto = {
+        categoria: document.getElementById('categoria').value,
+        squadra: squadra,
+        stagione: document.getElementById('stagione').value || '',
+        id: document.getElementById('id').value,
+        immagine: document.getElementById('immagine').value || '',
+        descrizione: document.getElementById('descrizione').value || '',
+        campionato: campionato
+      };
+
+      const prodottiSalvati = getProdotti();
+      prodottiSalvati.push(prodotto);
+      setProdotti(prodottiSalvati);
+      form.reset();
+      aggiornaId();
+      aggiornaTabella();
+
+      msgSuccesso.textContent = '? Prodotto aggiunto con successo!';
+      msgInfo.textContent = '';
+      setTimeout(() => msgSuccesso.textContent = '', 3000);
+    });
+
+    btnEsporta.addEventListener('click', function () {
+      const prodottiSalvati = getProdotti();
+      if (prodottiSalvati.length === 0) {
+        msgInfo.textContent = '?? Nessun prodotto da esportare.';
+        return;
+      }
+      const blob = new Blob([JSON.stringify(prodottiSalvati, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'prodotti.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      msgInfo.textContent = '? File JSON scaricato.';
+      setTimeout(() => msgInfo.textContent = '', 3000);
+    });
+
+    btnReset.addEventListener('click', function () {
+      if (confirm('Sei sicuro di voler cancellare tutti i prodotti salvati?')) {
+        setProdotti([]);
+        aggiornaId();
+        aggiornaTabella();
+        msgInfo.textContent = '? Prodotti eliminati.';
+        msgSuccesso.textContent = '';
+        setTimeout(() => msgInfo.textContent = '', 3000);
+      }
+    });
+
+    aggiornaCampionatiProdottiSalvati();
+    aggiornaId();
+    aggiornaTabella();
+  </script>
+
+</body>
+</html>
